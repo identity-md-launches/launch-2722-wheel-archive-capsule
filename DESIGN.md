@@ -2,97 +2,98 @@
 
 ## Overview
 
-Wheel Archive is a small settlement collection for browsing, saving, and signing personal keepsakes. Its visual system uses warm paper surfaces, dark green ink, architectural wheel studies, and a chartreuse primary action. The artwork carries the circular archive idea; the interface remains quiet and practical.
+Wheel Archive is a reading room for Squeekchain settlements. A wheel seal carries the visual identity; the sidebar, featured record and repeated capsule layout retain the v1 composition. The follow-up requests a dark palette, implemented here over the supplied light v1. DM Sans, DM Mono, the chartreuse action and circular brand mark remain.
 
-Canonical tokens and component styles live in `src/styles.css`. `src/WheelArt.tsx` owns artwork colors and geometry. The final production export was inspected in Chromium at desktop and phone widths. The content is an explicitly labeled exhibition collection, not a live data dashboard.
+Source values in `src/styles.css` are canonical for the archive. `public/overlay.css` implements the same roles for a dependency-free OBS page. The production export was inspected in Chromium at mobile and desktop sizes using isolated API fixtures and the real unavailable-feed state. No fixture is included in the runtime.
 
 ## Colors
 
-Components use semantic roles mapped to a small primitive palette. The palette is deliberately light only.
+The interface is deliberately dark only. Hex primitives map to semantic roles; component styles use the semantic tokens.
 
-| Semantic token | Value | Purpose |
+| Semantic token | Value | Role |
 | --- | --- | --- |
-| `--color-bg` | `#f7f7f2` | Paper background, dialogs |
-| `--color-sidebar` | `#efefe7` | Navigation rail |
-| `--color-surface` | `#ffffff` | Available plain surface token |
-| `--color-text` | `#283329` | Body, headings, icons, dark notices |
-| `--color-muted` | `#656b5d` | Secondary copy and metadata |
-| `--color-border` | `#dddfd3` | Dividers and structural outlines |
-| `--color-hover` | `#e9eedf` | Neutral action hover/pressed surface |
-| `--color-accent` | `#d5ec92` | Primary action fill |
-| `--color-accent-hover` | `#c7e575` | Primary hover and pressed fill |
-| `--color-accent-ink` | `#283329` | Text on primary fill |
-| `--color-success` | `#4e6337` | Saved/stamped icons and success text |
-| `--color-error` | `#a13c30` | Recoverable inline errors |
-| `--color-focus` | `#405b23` | Two-pixel keyboard focus outline |
+| `--color-bg` | `#111714` | Page, dialog |
+| `--color-sidebar`, `--color-surface` | `#171f1b` | Rail and artwork surface |
+| `--color-hover` | `#202a24` | Hover and selected range |
+| `--color-border` | `#35433a` | Structural dividers, outlines |
+| `--color-text` | `#edf0e7` | Primary text |
+| `--color-muted` | `#a6afa5` | Supporting copy and metadata |
+| `--color-accent` | `#d5ec92` | Primary action and brand detail |
+| `--color-accent-hover` | `#c7e575` | Primary hover |
+| `--color-accent-ink` | `#202a24` | Primary button label |
+| `--color-success` | `#79c8bb` | Running state, success, forming ring |
+| `--color-error` | `#f5b29d` | Unavailable feed and recoverable errors |
+| `--color-focus` | `#d5ec92` | Keyboard outline |
 
-`--neutral-400: #92978b` is the unconnected dot. The paired text communicates its state; the dot is not a status announcement by itself.
+The final populated-state probe measured a minimum resolved UI text contrast of 7.45:1 across its mobile and desktop text samples; its ordinary and large-text checks passed. This describes the sampled rendered opaque pairs, not arbitrary video behind the transparent overlay. The optional overlay panel uses `#111714f2`; the document and body always stay transparent.
 
-Measured contrast: body/page 12.25:1; muted/page 5.12:1; primary text/fill 10.18:1; error/page 6.10:1. Focus/page is 7.14:1 and focus/accent is 5.93:1. These values describe the identified opaque pairs, not a claim about every possible rendered state. The final probe checked visible UI text against its resolved background.
-
-The artwork palette, confined to `WheelArt`, pairs sage `#e4ead5/#4d613b`, peach `#efe0d0/#956748`, lavender `#e7e3ed/#78628e`, sand `#ece8da/#8b7c4f`, blue `#dfe8e9/#527779`, and rose `#eadfdb/#92685f`. These identify exhibition forms, not action or settlement status. Artwork has an accessible descriptive SVG name.
+Seal hue is data-driven `hsl(24 + byte[2] % 26, 79%, 68%)`; the counter-arc is `#79c8bb`, construction marks `#858c87`. This artwork palette represents the transaction fingerprint rather than interactive controls. Every seal has an accessible name naming its round. Running, asleep and unknown have text cues as well as a dot/color.
 
 ## Typography
 
-DM Sans Variable is the interface family, with sans-serif fallbacks. DM Mono, with monospace fallback, is reserved for settlement identifiers, dates, counters, and wallet addresses. Both are local Fontsource assets with `font-display: swap`; intended fonts were confirmed loaded in Chromium.
+`--font-body` is `'DM Sans Variable', 'DM Sans', sans-serif`; `--font-data` is `'DM Mono', monospace`. Weights are 400 and 600; mono uses its supplied 400 face. Main fonts are bundled through the existing Fontsource dependencies. The overlay uses a local copy at `public/fonts/dm-sans-latin.woff2`. Font notices remain in `public/licenses/`.
 
-The interface uses weights 400 and 600. DM Sans supplies a normal variable weight face; DM Mono supplies normal 400. There is no synthetic italic or bold dependency.
-
-| Token | Default | Role |
+| Token | Size | Use |
 | --- | --- | --- |
-| `--text-caption` | 12px | Metadata, captions, compact utilities |
-| `--text-small` | 14px | Body UI, descriptions, buttons |
-| `--text-body` | 16px | Phone search input, instructional subheads |
-| `--text-section` | 20px | Section and capsule-card titles |
-| `--text-title` | 28px | Featured and detailed capsule titles |
-| `--text-display` | 48px; 36px at ≤720px | Page heading |
+| `--text-caption` | 12px | Supporting metadata, labels, range buttons |
+| `--text-small` | 14px | Interface prose, buttons, primary data |
+| `--text-body` | 16px | Detail voice, stamp explanation, phone form input |
+| `--text-section` | 20px | Section and card headings |
+| `--text-title` | 28px | Featured desktop round, empty feature |
+| `--text-display` | 48px; 36px at ≤720px | Main heading |
 
-Sizes are authored in rem. Body line height is 1.5, detail stories 1.65, headings 1.2, and the page heading 1.1. Display tracking is −0.055em; smaller titles use −0.025em to −0.04em; data counters explicitly reset tracking to zero. Headings balance; descriptions use pretty wrapping. Long addresses wrap anywhere and are never ellipsized in details. Changing numbers use tabular numerals. Reading copy is capped around 48–62ch.
+Each viewport uses at most six authored scale steps. Body line-height is 1.5; headings 1.2; the display heading 1.1. Display tracking is −.055em; section/card headings −.025em; featured desktop heading −.04em. Prose uses the sans face and pretty wrapping; headings balance. Identifiers, changing values and facts use tabular numbers. Long addresses and transaction hashes wrap anywhere, with no ellipsis or hidden text. Root smoothing is applied once. Chromium confirmed the intended web font loaded.
 
 ## Layout
 
-Spacing tokens are 4, 8, 12, 16, 20, 24, 32, 40, and 48px. The desktop shell has a 224px sidebar, an 86px header, and a content region with 48px inline gutters and a 1360px maximum width. The primary featured capsule uses a roughly equal split between artwork and its record. The collection uses three equal columns and 24px gaps.
+The spacing tokens retain 4, 8, 12, 16, 20, 24, 32, 40 and 48px steps. A 224px desktop sidebar accompanies a content region with 48px gutters and 1360px maximum width. The header is at least 78px high. The live forming row precedes the featured capsule; the collection follows with its range controls immediately above its summary and records. The featured desktop split is 1 : 1.15; the collection has three columns with 24px gaps.
 
-| Breakpoint | Implemented adaptation |
+| Width | Behavior |
 | --- | --- |
-| ≥1600px | Sidebar expands to 248px; 48px top content spacing |
-| ≤1190px | Sidebar narrows to 194px, gutters to 32px, grid gaps to 16px; toolbar can wrap |
-| 721–960px | Sidebar becomes an 80px icon rail; navigation keeps explicit accessible names |
-| ≤720px | Navigation becomes a top row; 20px page gutters; display heading 36px; two collection columns; search input is 16px; wallet dialog becomes a bottom sheet |
-| ≤510px | Featured art stacks above the record with a 195px art area; one collection column; primary action expands across the record |
-| ≤350px | Page gutters reduce to 16px and low-priority decorative icons are removed |
+| ≤1190px | 194px rail, 32px content gutters, two collection columns and 16px gaps |
+| 721–960px | Rail collapses to 80px icon navigation; explicit accessible names remain |
+| ≤720px | Rail becomes a compact top row; 20px content gutters; heading 36px; forming ring 76px; Stamp dialog is a bottom sheet |
+| ≤510px | Featured art stacks above facts and actions, with a 160px art area; collection is one column; primary feature action expands |
+| ≤350px | 16px page gutters; forming ring 64px; range buttons become narrower |
 
-At 390 × 844, the main action occupies approximately y=638–682 and is fully visible. At 320, 390, 600, 800, 1024, and 1440px, automated reflow checks found no horizontal page overflow. Full-page desktop and first-screen mobile screenshots were inspected. Native browser zoom, RTL, and translated layouts were not manually verified.
+At 390 × 844, Open capsule and Stamp occupy y≈751–795 in the inspected populated state. The pitch, ring, seal and record are visible above them. Reflow checks passed at 320, 390, 600, 800, 1024 and 1440px. Text enlargement through native zoom, translation and RTL rendering were not verified; direction-dependent layout uses logical properties.
+
+The OBS widget defaults to 440px wide and content height. Query parameters can set outer width/height; width never exceeds its viewport, and a constrained height scrolls rather than clipping the record. Its capsule uses a 116px seal beside the text, reducing to 80px at ≤350px. `capsule=0` removes that section and its request.
 
 ## Elevation & depth
 
-The system is flat: structural one-pixel borders, tonal surfaces, and no drop shadows. Cards do not contain nested cards. Native dialogs use the browser top layer, an ink backdrop at 48% opacity, and 3px backdrop blur. Notifications use solid inverse colors and remain dismissible rather than disappearing on a timer.
+The interface is flat, using tonal surfaces and one-pixel structural borders without box shadows. Capsule art surfaces contain SVG linework rather than nested cards. Native dialogs occupy the top layer with a dark `#050b08cc` backdrop and 3px backdrop blur. Their maximum height is bounded by the viewport and internal overflow is scrollable. No decorative gradients or glows compete with the seals.
 
 ## Shapes
 
-Controls use `--radius-control: 6px`; capsule surfaces use `--radius-surface: 10px`. Desktop dialogs use 12px; phone wallet sheets use 16px at their upper corners. Circular utility buttons sit over artwork. Wheel linework, fine grids, and registration marks are artwork rather than repeated decorative interface layers. Artwork corners follow their capsule container without clipping textual content. The featured SVG inherits its container’s corner radii at each breakpoint.
+Controls use `--radius-control: 6px`, art and featured surfaces `--radius-surface: 10px`; native dialogs 12px. Phone stamp sheets use 16px upper corners. Circular geometry is reserved for the brand, seal and progress ring. Artwork borders do not clip any text. Controls have a minimum 44px primary action height; range and inline transaction utilities are smaller but exceed the tested 24px spacing/target baseline.
 
 ## Components
 
-- **`WheelMark` / `Icon`**, `src/Icons.tsx`: shared circular brand mark and a single currentColor outline icon set. Decorative icons are hidden from assistive technology. Icon-only controls receive names from their buttons.
-- **`WheelArt`**, `src/WheelArt.tsx`: accepts `theme`, `shape`, and `large`; creates locally rendered SVG wheel studies, background grids, and descriptive accessible names. Geometry is deterministic and has no animation.
-- **`CapsuleCard`**, `src/App.tsx`: consistent artwork, settlement/date row, linked title, short note, bookmark, and open control. Bookmark buttons expose `aria-pressed`. A stamped state includes a check and text, not color alone.
-- **Featured capsule**, `src/App.tsx`: one chartreuse `Explore capsule` action plus a neutral bookmark. Settlement metadata and exhibition disclosure sit beside the record.
-- **Buttons**, `src/styles.css`: `.button.primary` for the current surface’s primary task, `.button.secondary` for outlined utility actions, `.text-button` for text utilities, `.icon-button` for compact named controls. Main buttons are at least 44px high; card bookmarks and header utilities are 36–40px. Hover is gated by pointer capability. Disabled actions are dimmed while a wallet request is pending.
-- **Search/filter toolbar**, `src/App.tsx`: labeled native search input and selects. Search supports title, number, and note; empty results explain how to recover. Counts are announced through a stable polite status region.
-- **`Modal`**, `src/Modal.tsx`: native `dialog.showModal()` with a named title, close button, backdrop dismissal, Escape, explicit Tab/Shift+Tab wrapping, and trigger focus restoration. The browser makes background content inert. Height is bounded with internal scrolling and overscroll containment.
-- **`WalletSheet`**, `src/WalletSheet.tsx`: discovered extension names/icons, generic-browser fallback, Coinbase, and mobile app links. Shows per-row pending state and recoverable inline errors; connected state exposes the full address, network switch, and disconnect.
-- **`StampPanel`**, `src/StampPanel.tsx`: disconnected, wrong-chain, pending, rejected, verification-error, and success states. Signatures are verified before success. Success includes the full address and a receipt download.
-- **Collection/notification states**, `src/App.tsx`, `src/storage.ts`: saved and address-specific stamp collections; useful empty states; corrupt storage recovery; explicit warning when storage is unavailable. Local-only persistence is stated in the interface.
+| Component / source | Reuse and behavior |
+| --- | --- |
+| `WheelMark`, `Icon` / `src/Icons.tsx` | Existing circular logo and consistent currentColor outline icons; decorative icons are hidden from assistive technology |
+| `WheelArt` / `src/WheelArt.tsx` | Receives a validated capsule and inserts only the shared deterministic SVG; no IDs or per-render variation |
+| `sealSVG`, `capsuleLine` / `public/archive-core.js` | Shared transaction fingerprint and factual register selection; used unchanged by the overlay |
+| `ProgressRing` / `src/ProgressRing.tsx` | Receives `status` and `stale`; changes fill from measured progress and text from coreStatus; unknown labels never masquerade as zero |
+| Featured record / `src/App.tsx` | Seal, voice, facts, primary Open capsule, secondary Stamp, settlement link |
+| `CapsuleCard`, `CapsuleFacts` / `src/App.tsx` | Same field order in feature, collection and detail: round, work, completed blocks; block and transaction remain available |
+| Range switch / `src/App.tsx` | Three native buttons with `aria-pressed`; refetch and display the response summary; retain and name the last range on failure |
+| `Modal` / `src/Modal.tsx` | Native dialog, explicit accessible heading, Escape and backdrop dismissal, Tab / Shift+Tab containment, trigger focus restoration |
+| `StampPanel`, `WalletSheet` | Loaded only after Stamp; explanation precedes wallet prompt, EIP-6963 names and icons, phone links and Coinbase option; disconnected, switching, pending, rejected and submitted states |
+| Feed / `src/feed.ts` | Last-good snapshots only in memory, independently unavailable endpoints, bounded requests and canceled stale selections |
+| `public/overlay.html`, `.js`, `.css` | Independent native-module page, no wallet runtime, shared seal/progress arithmetic, transparent document and optional dark panel |
 
-Interaction transitions are 150ms with `cubic-bezier(.2, 0, 0, 1)`. Press feedback uses scale 0.96. They exist only inside `prefers-reduced-motion: no-preference`; reduced motion has no transforms or transitions. There is no autoplay, entrance sequence, or endless motion. Focus outlines use two pixels with four-pixel offset and preserve system Highlight in forced-colors mode.
+Buttons use `.button.primary` for one leading action per surface, `.button.secondary` for its peer, `.text-button` for utilities and `.icon-button` for named compact actions. Filled chartreuse is reserved for the main action. Hover is limited to hover-capable pointers. Disabled controls retain their labels. Keyboard indicators are 2px solid with 4px offset and use system Highlight under forced colors.
+
+Interactive transitions last 150ms with `cubic-bezier(.2,0,0,1)` and press scale .96. They exist only under `prefers-reduced-motion: no-preference`. The ring’s fill transitions when data changes; no object spins continuously and there is no entrance animation. Polite status regions announce feed, summary, copy and wallet outcomes. Clipboard denial provides a selectable full link. No notification containing an error disappears on a timer.
 
 ## Do’s and don’ts
 
-Use the existing shell, type tokens, and shared card pattern for another collection view. Use native controls and descriptive names; preserve full addresses and clear exhibition/local-storage disclosures. Keep a single colored primary action on each active surface and use secondary styles for its peers.
+Start a new archive surface from the existing shell, spacing tokens and facts pattern. Use data prose in the sans face and identifiers in the mono face. Keep the range control beside the content it changes, with one filled action on the active surface. Reuse the shared core for another display of the same seal.
 
-Keep artwork colors within the artwork component. Do not use them as new semantic statuses. Do not add shadows to outlined cards, introduce additional font sizes, or claim a local collection is a shared or onchain registry. New settlement content should extend `src/data.ts`; a future real feed needs an explicit, documented data integration.
+Keep unknown data explicit, full transaction identifiers readable, and the testnet named before stamping. Do not add persistent collections, invented settlements, image-based seals, wallet reconnect on page load, root-relative assets or additional type scales. Do not treat the arbitrary OBS background as a measured contrast pair; use the panel when footage needs it.
 
 ## Guidance attribution
 
-Design guidance is adapted from Jakub Krehel’s Better Interface, MIT, commit `267330e1adfc66a718fb65fa6918c1f06d0a689e`. Documentation method is adapted from Paul Bakaus’s Impeccable, Apache-2.0, commit `9d715cc4f5564a990ca8345abfdd5df6dc9b41c8`. This document records the implemented Wheel Archive design, modified for this assignment. Both retained licenses are in `DESIGN-LICENSES.txt`.
+Design guidance is adapted from Jakub Krehel’s Better Interface (MIT), commit `267330e1adfc66a718fb65fa6918c1f06d0a689e`. Documentation method is adapted from Paul Bakaus’s Impeccable (Apache-2.0), commit `9d715cc4f5564a990ca8345abfdd5df6dc9b41c8`. This document was revised for the implemented v2. Both retained licenses are in `DESIGN-LICENSES.txt`. Review findings and unverified coverage belong in `VALIDATION.md`.

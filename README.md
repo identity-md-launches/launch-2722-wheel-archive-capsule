@@ -1,21 +1,23 @@
 # Wheel Archive
 
-A capsule per settlement, and a stamp you can leave on your own address. Built with React, TypeScript, and Vite, with an included static export in `dist/`.
+Every settled batch of Squeekchain rounds becomes a sealed capsule.
 
-The site is a complete **exhibition collection** of six illustrative settlements. No production settlement feed, contract, or backend was supplied. The interface labels sample content throughout. Wallet-signed stamps are real, verified message signatures saved in the current browser; they are not minted tokens or onchain writes.
+This v2 replaces v1’s exhibition records and saved collections with the Squeekchain API, deterministic SVG seals, a live forming ring, capsule links, zero-value Sepolia stamps and a transparent OBS overlay. It retains the sidebar, featured record, collection layout, DM Sans / DM Mono typography and chartreuse actions. The supplied v1 was light; this revision implements the dark palette requested in the follow-up.
 
-## Install and run
+**Live-service limitation:** the API returned HTTP 403 Cloudflare challenges for every supplied endpoint during this run, including in Chromium. Ten *live* capsules could therefore not be verified. The production site contains no sample settlements or fallback fixtures. An unavailable feed shows unknown values; after a successful read, an outage retains the last good snapshot in page memory. Fifteen isolated Chromium interaction checks passed with API/provider fixtures. See [validation](VALIDATION.md).
 
-Use Node.js 22.12 or newer and npm.
+## Install, preview and rebuild
+
+The included `dist/` runs on static hosting without Node, a build step, keys or a backend. Serve the whole directory over HTTP(S); opening `index.html` with `file://` cannot reliably load ES modules or the API.
+
+For source development, use Node 22.12+ and the existing manifest and lockfile:
 
 ```sh
 npm ci
 npm run dev
 ```
 
-Open the local URL Vite prints. No account, environment file, project ID, or private credential is required.
-
-## Rebuild and preview
+To reproduce the production export and preview it:
 
 ```sh
 npm run typecheck
@@ -23,52 +25,93 @@ npm run build
 npm run preview
 ```
 
-The completed `dist/index.html`, fonts, wallet marks, artwork logic, and share image are included. Serve `dist/` with any static HTTP server. Vite uses `base: './'`; URLs are relative and navigation uses hashes, so a gateway subpath does not require server rewrites. Preserve the whole export when publishing it. Production hosting is outside this deliverable.
+Vite’s existing `base: './'` is unchanged. Assets are relative, links use fragments and `overlay.html` is a real exported file, so a gateway subpath needs no server rewrites. No configuration or dependency files were changed. The worker installed the locked dependencies in a temporary build copy outside the repository, ran the existing scripts there and copied its finished `dist/` back unchanged.
 
-To regenerate the share image after changing its source:
+## Browse and share
+
+- **24h / 7d / 30d** sends a new settlement request and displays the selected response’s summary. A failed range change keeps the previous range’s records and labels that retained range.
+- **Refresh** retries the three feed requests. Automatic refresh starts 15 seconds after the previous refresh completes; individual requests time out after 12 seconds. An older in-flight response cannot overwrite a newer selection.
+- **Open capsule** opens the round’s record at `#capsule-<round>`. A direct link loads the 30-day range. Rounds older than the API’s supported range cannot be retrieved by these endpoints.
+- **Copy link** copies the full URL. When clipboard permission is unavailable, a selectable full link appears.
+- There are no bookmarks, likes, leaderboards, saved receipts, cookies, service workers or application storage. Reloading discards in-memory snapshots and transaction results.
+
+## Data and seals
+
+Archive data comes only from `https://api.squeekchain.com/v1`:
+
+| GET | Consumed fields |
+| --- | --- |
+| `/status` | `status.measurement.{coreStatus,rpmMilli,cumulativeWorkUnits}`, `status.builder.anchor.{blockHeight,blockProgress,workPerThousandBlocks,settledThroughRound}` |
+| `/economy/state` | `economy.supply.totalMintedBaseUnits`, divided exactly by `1e18` |
+| `/settlements?range=24h\|7d\|30d` | `settlements.recentSettlements[]`, `settlements.summary` |
+
+The parser also accepts the endpoint object directly without its named envelope. Settlement records require numeric `round` (or `roundId`), `blockHeight` (or `blockNumber`), `workAdded`, `completedBlockCount`, and a 32-byte `transactionHash` (or `txHash`). These row field names are an explicit integration assumption because the challenge prevented inspection of the live payload. Invalid or unavailable responses retain the previous response; missing scalar measurements display Unknown. No number is synthesized from unavailable data. Summary text is derived from returned scalar fields, never computed from the displayed subset.
+
+`public/archive-core.js` is shared by the archive and overlay. FNV-1a-32 hashes the lowercase UTF-8 hash text, starting at `0x811c9dc5` with prime `0x01000193`. Expansion feeds counter bytes 0–7 through the same state and emits each resulting word little-endian, producing 32 bytes. This convention is fixed and documented because the brief did not define the expansion convention. All arithmetic uses explicit 32-bit overflow. SVG coordinates are serialized to four decimals; there are no SVG IDs, image requests, libraries, canvas or random values in the seal.
+
+Spokes follow `clamp(6, 48, 6 + round(log2(workAdded + 2) * 4))`. Length and opacity use hash bytes, hue is `24 + byte[2] % 26`, the outer arc is `min(1, completedBlockCount / 40)` and the counter-arc is teal. A hash byte selects one factual voice line from rest (0 work), trot (1–399), or sprint (400+), followed by the exact round and block. The ring uses `blockProgress / 1e9`; remaining work is `ceil((1 - progress) * workPerThousandBlocks / 1000)`. Only `coreStatus` determines Running / Asleep; an unrecognized value is Unknown.
+
+## Stamp on Sepolia
+
+Choose **Stamp** to load the wallet code and read the transaction explanation before a wallet prompt. Choose a named EIP-6963 extension, Coinbase Wallet / Smart Wallet, or a phone link into MetaMask, Coinbase Wallet, Rabby or Phantom. No connection or provider discovery runs on page load. Wagmi persistence and reconnect-on-mount are disabled.
+
+Once connected on Sepolia (chain 11155111 / `0xaa36a7`), **Send zero-value stamp** asks the wallet to send:
+
+```text
+from = connected address
+to = connected address
+value = 0
+input = UTF-8 hex of wheel-archive:<round>
+```
+
+The app uses no contract or token approval. Test ETH pays gas. The returned hash is displayed in full with a Sepolia Etherscan link; “submitted” does not mean confirmed. Nothing is sent without a connected wallet, and the wrong-chain action switches to Sepolia before sending is enabled. No real wallet was signed or transaction broadcast during worker validation. Physical app handoff, Coinbase passkeys and live transaction acceptance remain unverified.
+
+## OBS browser source
+
+Point an OBS browser source at the exported `overlay.html`, for example:
+
+```text
+overlay.html?panel=1&w=480&h=420&every=15
+```
+
+| Parameter | Behavior |
+| --- | --- |
+| `panel=1` | Gives only the widget a dark panel and border; defaults to no panel |
+| `w` | Widget outer width in pixels, capped by the viewport; default 440 |
+| `h` | Widget outer height in pixels; omitted means content height; short heights scroll |
+| `capsule=0` | Hides the newest capsule and skips its settlement request |
+| `every` | Delay between refreshes in seconds, default 15; bounded to 1–3600 |
+
+Both `html` and `body` are explicitly transparent, including before the stylesheet loads. Use an OBS canvas at least as large as the chosen widget dimensions. `panel=1` helps maintain readability over footage; contrast over arbitrary footage without a panel is not guaranteed. The overlay uses no wallet code and shares the same seal and progress logic as the archive.
+
+## Checks and actual results
 
 ```sh
-npx playwright install chromium
+node --test scripts/core.test.mjs
+npm run typecheck
+npm run build
+npx playwright install chromium webkit
+npm run validate
+node scripts/check-export.mjs
+```
+
+`validate.mjs` owns and closes a bounded static preview under `/preview/`. Fixtures are injected by Playwright routing and never enter the production export. It tests records, range requests, races, progress/state, unavailable snapshots, deep links, copying and clipboard denial, keyboard focus, reflow, overlay options, absent wallets and a mocked self-transaction. It writes disposable output under `test/scratch/`.
+
+Final worker results: **7 core tests passed; typecheck and production build passed; 15 Chromium interaction groups passed; axe reported no tested WCAG A/AA violations on the archive and capsule dialog; taste@1 passed 16/16 on both the real unavailable-feed state and a populated fixture state.** Reflow was checked at 320, 390, 600, 800, 1024 and 1440px. Open capsule and Stamp are visible on the first 390 × 844 screen. Identical seal markup was checked after reload and in an independent browser context.
+
+The runtime lacked Chrome and browser libraries. Chromium 140 / Playwright 1.55.1 and temporary libraries/fonts were installed outside the repository to run the checks; the locked production dependencies were used for the build. The newer Chrome download returned a regional 403. WebKit downloaded but could not create a page within a 12-second bounded probe, so its interaction group was explicitly skipped. `WHEEL_SKIP_WEBKIT=1` selects that recorded limitation. `WHEEL_PLAYWRIGHT`, `WHEEL_CHROMIUM` and `WHEEL_AXE` optionally point the test tools to externally installed modules/binaries; normal installations need none of them.
+
+The pinned design probe was run on the final export with its prescribed output path. The canonical six-domain review is [VALIDATION.md](VALIDATION.md). Screenshots and machine-readable results are in `artifacts/`, which this checkout excludes from Git and the platform collects separately. These worker checks are not independent certification. Native browser zoom, screen readers, physical devices, WebKit rendering, the live API schema/count and real signing remain unverified.
+
+To regenerate the share card after editing `scripts/share-card.mjs`:
+
+```sh
 node scripts/share-card.mjs
 npm run build
 ```
 
-## Use the archive
+## Release and attribution
 
-- Search by title, settlement number, or description; filter by month and sort by date or name.
-- Open a capsule to read its record. Capsule URLs such as `#/capsule/184` can be linked directly.
-- Bookmark capsules to save them in this browser. Saved capsules remain available without a wallet.
-- Connect a wallet, open a capsule, and choose **Sign and leave a stamp**. The site verifies the signature before saving it against the signing address.
-- Download a JSON stamp receipt inside a stamped capsule, or export the connected address’s collection from **My stamps**.
+The source, unchanged lockfile and full production export are included for the platform’s publication step. **Requested v2 label: `wheel-archive-v2`**, preserving the already pinned v1. No publication command was run; a new live URL is not available within this worker run. [Release handoff](artifacts/release.json) records this status.
 
-## Wallets and storage
-
-Browser wallets are discovered by EIP-6963 using wagmi. The same connect sheet supports Coinbase Wallet/Smart Wallet and phone links for MetaMask, Coinbase Wallet, Rabby, and Phantom. Phone links open the page in the wallet’s own browser; they need an installed wallet app and a reachable hosted page. There is no WalletConnect relay or project ID.
-
-Base is the signing context, configured in `src/wallet.ts`. The app requests a network switch when necessary. It never sends a transaction, requests a token allowance, or charges gas. EOA signatures are verified locally with viem. Contract-wallet signatures use Base’s public RPC for EIP-1271/EIP-6492 verification if local verification cannot succeed. That path requires network access.
-
-Bookmarks use `wheel-archive:saved:v1`; receipts use `wheel-archive:stamps:v1`. Browser storage is not a public registry and is not synchronized across devices or visitors. Clearing site data removes the collection. Export receipts before clearing data. If storage is unavailable, the site explains that changes last only for the current page session. Full signing addresses remain available in capsule details and receipts.
-
-## Validation
-
-```sh
-npx playwright install chromium
-npm run build
-npm run validate
-```
-
-`scripts/validate.mjs` starts and closes its own local server, serves the production export under `/preview/`, and runs actual Chromium interactions. It generates a new ephemeral signer only in memory to test wallet signatures; no test key or account is part of the application. Optional WebKit coverage runs when that browser can launch.
-
-Final worker results: production build and TypeScript check passed; **13 interaction groups passed, 0 failed**. The pinned taste@1 probe passed **16/16 checks** after fixes. Automated axe checks found no violations for the selected WCAG A/AA tags on the archive, capsule dialog, and collapsed tablet navigation. The 390 × 844 first screen shows the product and primary action. Reflow was checked at 320, 390, 600, 800, 1024, and 1440 CSS pixels.
-
-WebKit could not launch in the validation runtime. Physical wallets, phone app handoff, Coinbase passkey creation, contract-wallet verification against a real account, screen readers, and native browser zoom remain unverified. These results are worker checks, not independent certification. See [the full validation record](artifacts/validation.md), [machine-readable interactions](artifacts/interaction-results.json), and [design probe results](artifacts/taste-results.json).
-
-Dependencies and browser downloads were installed in temporary locations outside the submitted project. The source and lockfile reproduce the build with normal `npm ci`; dependencies and package caches are not included in the submission. `test/scratch/` contains disposable validation output and is not needed to build or run the site.
-
-## Source and design
-
-`src/data.ts` contains exhibition content; `src/WheelArt.tsx` generates the original wheel studies. `src/App.tsx` owns archive navigation and collections. `src/WalletSheet.tsx`, `src/StampPanel.tsx`, and `src/storage.ts` implement connection, signing, and receipts. The final tokens, components, and responsive behavior are documented in [DESIGN.md](DESIGN.md).
-
-Wallet integration follows the pinned connector reference and the current [wagmi configuration](https://wagmi.sh/react/api/createConfig), [connection](https://wagmi.sh/react/api/hooks/useConnection), and [Coinbase connector](https://wagmi.sh/react/api/connectors/coinbaseWallet) APIs. Rabby’s URL uses the `open-dapp` handler in its [official mobile source](https://github.com/RabbyHub/rabby-mobile/blob/develop/apps/mobile/src/hooks/universalLink.ts); native app handoff was not tested.
-
-DM Sans and DM Mono are bundled through Fontsource under the SIL Open Font License; notices are in `public/licenses/`. Wallet artwork is copied from RainbowKit 2.2.11 under MIT, with its license in `public/wallets/`. The wheel artwork is original procedural SVG. Design and documentation guidance credits and retained licenses are in `DESIGN-LICENSES.txt` and `DESIGN.md`.
+See [DESIGN.md](DESIGN.md) for the implemented tokens, typography, components and responsive behavior. Fonts retain their SIL Open Font License notices in `public/licenses/`; wallet marks retain the RainbowKit MIT notice in `public/wallets/`. The brand and procedural SVG artwork are local. Better Interface and Impeccable design/documentation guidance and licenses are retained in `DESIGN-LICENSES.txt`.

@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 export function Icon({ name, size = 20, style }: { name: string; size?: number; style?: CSSProperties }) {
   const paths: Record<string, React.ReactNode> = {
+    refresh: <><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 7a7 7 0 0 1 12-1l2 3M4 15l2 3a7 7 0 0 0 12-1"/></>,
     archive: <><rect x="4" y="9" width="16" height="11" rx="2"/><path d="M3 4h18v5H3zM9 13h6"/></>,
     stamp: <><path d="M9 4a3 3 0 0 1 6 0c0 2-1 3-1 5v2l4 3v3H6v-3l4-3V9c0-2-1-3-1-5ZM5 21h14"/></>,
     bookmark: <path d="M6 4h12v17l-6-4-6 4z"/>,

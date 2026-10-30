@@ -1,124 +1,75 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useConnection } from 'wagmi';
-import { capsules, capsuleNumber, formatDate, type Capsule } from './data';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { API, RANGES, TX_EXPLORER, capsuleLine, formatNumber, summaryLine, type Capsule, type Range } from '../public/archive-core.js';
 import { Icon, WheelMark } from './Icons';
 import { WheelArt } from './WheelArt';
 import { Modal } from './Modal';
-import { WalletSheet } from './WalletSheet';
-import { StampPanel } from './StampPanel';
-import { archiveChain, shortAddress } from './wallet';
-import { downloadJson, persist, readSaved, readStamps, SAVED_KEY, STAMPS_KEY, type Stamp } from './storage';
-
-type View = 'archive' | 'saved' | 'stamps';
-function getRoute() { return location.hash.slice(2) || 'archive'; }
-
+import { ProgressRing } from './ProgressRing';
+import { useFeed } from './feed';
+const StampPanel = lazy(() => import('./StampPanel'));
+const routeRound = () => /^#capsule-(\d+)$/.exec(location.hash)?.[1] ?? null;
 export default function App() {
-  const { address, isConnected, chainId } = useConnection();
-  const [route, setRoute] = useState(getRoute);
-  const [saved, setSaved] = useState(readSaved);
-  const [stamps, setStamps] = useState(readStamps);
-  const [query, setQuery] = useState('');
-  const [sort, setSort] = useState('newest');
-  const [month, setMonth] = useState('all');
-  const [connectOpen, setConnectOpen] = useState(false);
-  const [info, setInfo] = useState<'about' | 'privacy' | null>(null);
-  const [notice, setNotice] = useState('');
-  const previousView = useRef<View>(route === 'saved' || route === 'stamps' ? route : 'archive');
-  const mainRef = useRef<HTMLElement>(null);
-  const view: View = ['saved', 'stamps'].includes(route) ? route as View : previousView.current;
-  const selected = route.startsWith('capsule/') ? capsules.find(c => c.id === Number(route.split('/')[1])) : undefined;
+  const [range, setRange] = useState<Range>(() => routeRound() ? '30d' : '24h');
+  const feed = useFeed(range);
+  const [round, setRound] = useState(routeRound), [stamp, setStamp] = useState<Capsule | null>(null);
+  const [info, setInfo] = useState(false), [notice, setNotice] = useState(''), [copyFallback, setCopyFallback] = useState('');
+  const searchAttempted = useRef<string | null>(null);
+  const latest = feed.archive.data?.capsules[0], selected = feed.archive.data?.capsules.find(c => c.round === round);
   useEffect(() => {
-    const onHash = () => {
-      const next = getRoute(); setRoute(next);
-      if (['archive', 'saved', 'stamps'].includes(next)) {
-        const changedView = next !== previousView.current;
-        previousView.current = next as View;
-        if (changedView) { setQuery(''); setMonth('all'); requestAnimationFrame(() => mainRef.current?.focus({ preventScroll: true })); window.scrollTo({ top: 0 }); }
-      }
-    };
-    window.addEventListener('hashchange', onHash);
-    return () => window.removeEventListener('hashchange', onHash);
+    const changed = () => { setRound(routeRound()); setNotice(''); setCopyFallback(''); };
+    addEventListener('hashchange', changed);
+    return () => removeEventListener('hashchange', changed);
   }, []);
-  const ownStamps = useMemo(() => stamps.filter(s => s.address.toLowerCase() === address?.toLowerCase()), [stamps, address]);
-  const toggleSave = (id: number) => {
-    const next = saved.includes(id) ? saved.filter(x => x !== id) : [...saved, id];
-    const stored = persist(SAVED_KEY, next); setSaved(next);
-    setNotice(stored ? `${capsuleNumber(id)} ${next.includes(id) ? 'saved to your collection.' : 'removed from saved capsules.'}` : 'Browser storage is unavailable. This change lasts until you close the page.');
+  useEffect(() => {
+    if (round && feed.archive.data && !selected && !feed.refreshing && range !== '30d' && searchAttempted.current !== round) {
+      searchAttempted.current = round; setRange('30d');
+    }
+  }, [round, selected, feed.archive.data, feed.refreshing, range]);
+  const close = () => { history.pushState(null, '', `${location.pathname}${location.search}`); setRound(null); setCopyFallback(''); setNotice(''); };
+  const copy = async (capsule: Capsule) => {
+    const url = new URL(location.href); url.hash = `capsule-${capsule.round}`;
+    try { await navigator.clipboard.writeText(url.href); setNotice('Capsule link copied.'); }
+    catch { setCopyFallback(url.href); setNotice('Copy this capsule link:'); }
   };
-  const addStamp = (stamp: Stamp) => {
-    const next = [...stamps.filter(s => !(s.capsuleId === stamp.capsuleId && s.address.toLowerCase() === stamp.address.toLowerCase())), stamp];
-    const stored = persist(STAMPS_KEY, next); setStamps(next);
-    setNotice(stored ? `Your stamp on ${capsuleNumber(stamp.capsuleId)} is saved in this browser.` : 'Your stamp is signed, but browser storage is unavailable. Download its receipt before leaving.');
-  };
-  const filtered = capsules.filter(c => {
-    if (view === 'saved' && !saved.includes(c.id)) return false;
-    if (view === 'stamps' && !ownStamps.some(s => s.capsuleId === c.id)) return false;
-    if (month !== 'all' && !c.date.startsWith(month)) return false;
-    return `${c.id} ${capsuleNumber(c.id)} ${c.title} ${c.note}`.toLowerCase().includes(query.trim().toLowerCase());
-  }).sort((a, b) => sort === 'oldest' ? a.id - b.id : sort === 'title' ? a.title.localeCompare(b.title) : b.id - a.id);
-  const latest = capsules[0];
-  const showFeature = view === 'archive' && !query && month === 'all';
-  const openCapsule = (capsule: Capsule) => { location.hash = `/capsule/${capsule.id}`; };
-  const resetFilters = () => { setQuery(''); setMonth('all'); setSort('newest'); };
+  const failed = [feed.status.unavailable && 'wheel', feed.supply.unavailable && 'supply', feed.archive.unavailable && 'settlements'].filter(Boolean);
+  const stale = failed.length > 0, hasSnapshot = Boolean(feed.status.data || feed.supply.data || feed.archive.data), dataRange = feed.archive.data?.range;
   return <>
     <a className="skip-link" href="#main">Skip to content</a>
     <div className="app-shell">
       <aside className="sidebar">
-        <a href="#/archive" className="brand" aria-label="Wheel Archive home"><WheelMark size={36}/><span>Wheel<br/>Archive<span className="brand-period">.</span></span></a>
-        <nav className="main-nav" aria-label="Main navigation">
-          <a href="#/archive" aria-label="All capsules" aria-current={view === 'archive' ? 'page' : undefined}><Icon name="archive"/><span>All capsules</span><span className="nav-count">{capsules.length.toString().padStart(2, '0')}</span></a>
-          <a href="#/saved" aria-label="Saved capsules" aria-current={view === 'saved' ? 'page' : undefined}><Icon name="bookmark"/><span>Saved capsules</span>{saved.length > 0 && <span className="nav-count">{saved.length}</span>}</a>
-          <a href="#/stamps" aria-label="My stamps" aria-current={view === 'stamps' ? 'page' : undefined}><Icon name="stamp"/><span>My stamps</span>{ownStamps.length > 0 && <span className="nav-count">{ownStamps.length}</span>}</a>
-        </nav>
-        <div className="sidebar-note"><span className="mini-wheel"><WheelMark size={25}/></span><p>A turn settles.<br/>A story stays.</p><span className="small muted">An archive of moments<br/>worth keeping.</span></div>
-        <div className="sidebar-bottom"><button onClick={() => setInfo('about')}><Icon name="info" size={18}/>About the archive<Icon name="diagonal" size={16}/></button><span className="small muted">Made for the long turn.</span></div>
+        <a href="./" className="brand" aria-label="Wheel Archive home"><WheelMark size={36}/><span>Wheel<br/>Archive<span className="brand-period">.</span></span></a>
+        <nav className="main-nav" aria-label="Main navigation"><a href="#collection" aria-label="All capsules" aria-current="page"><Icon name="archive"/><span>All capsules</span><span className="nav-count">{feed.archive.data?.capsules.length ?? '?'}</span></a><a href="./overlay.html" aria-label="Stream overlay"><Icon name="sun"/><span>Stream overlay</span><Icon name="diagonal" size={16}/></a></nav>
+        <div className="sidebar-note"><WheelMark size={27}/><p>A turn settles.<br/>A story stays.</p><span className="small muted">Sealed in the numbers.<br/>Kept in the archive.</span></div>
+        <div className="sidebar-bottom"><button onClick={() => setInfo(true)}><Icon name="info" size={18}/>About the archive<Icon name="diagonal" size={16}/></button><span className="small muted">Sepolia testnet</span></div>
       </aside>
-
       <div className="workspace">
-        <header className="topbar"><div className="breadcrumb"><span>Archive</span><span className="breadcrumb-slash">/</span><span>{view === 'saved' ? 'Saved capsules' : view === 'stamps' ? 'My stamps' : 'All capsules'}</span></div><button className="connect-button" onClick={() => setConnectOpen(true)}><span className={`connection-dot${isConnected ? ' connected' : ''}`}/>{isConnected && address ? chainId !== archiveChain.id ? 'Switch to Base' : shortAddress(address) : 'Connect wallet'}<Icon name="wallet" size={17}/></button></header>
-        <main id="main" ref={mainRef} tabIndex={-1}>
-          <div className="page-heading"><div><h1>{view === 'archive' ? <>Every turn, kept<span className="heading-dot">.</span></> : view === 'saved' ? 'Keep a few close.' : 'A mark that’s yours.'}</h1><p>{view === 'archive' ? 'A capsule for every settlement. A stamp you can leave on your own address.' : view === 'saved' ? 'The capsules you want to come back to, saved in this browser.' : 'Your wallet-signed keepsakes, collected in this browser.'}</p></div><button className="text-button how-button" onClick={() => setInfo('about')}>How it works<Icon name="diagonal" size={17}/></button></div>
-
-          {showFeature && <section className="featured" aria-labelledby="featured-title"><div className="featured-art"><WheelArt large theme={latest.theme} shape={latest.shape}/><span className="art-caption">The latest turn</span><span className="art-edition">01 / 06</span></div><div className="featured-copy"><div className="featured-title-row"><h2 id="featured-title">{latest.title}</h2><Icon name="sun" size={24}/></div><p className="featured-description">{latest.note}{' '}<br/>The latest capsule in the Wheel Archive.</p><dl className="featured-facts"><div><dt>Settlement</dt><dd>{capsuleNumber(latest.id)}</dd></div><div><dt>Settled on</dt><dd>{formatDate(latest.date)}</dd></div></dl><div className="featured-actions"><button className="button primary" onClick={() => openCapsule(latest)}>Explore capsule<Icon name="arrow" size={18}/></button><button className={`icon-button save-button${saved.includes(latest.id) ? ' saved' : ''}`} aria-label={`${saved.includes(latest.id) ? 'Unsave' : 'Save'} ${latest.title}`} aria-pressed={saved.includes(latest.id)} onClick={() => toggleSave(latest.id)}><Icon name="bookmark"/></button></div><span className="small featured-footnote"><span className="tiny-square"/>Exhibition collection · sample settlement</span></div></section>}
-
-          {view === 'stamps' && !isConnected && <section className="empty-state stamp-empty"><span className="empty-icon"><Icon name="stamp" size={30}/></span><h2>Your address has a story.</h2><p>Connect your wallet to see its stamps, or open a capsule to leave your first one.</p><button className="button primary" onClick={() => setConnectOpen(true)}>Connect to view stamps<Icon name="arrow" size={18}/></button><a className="text-button" href="#/archive">Explore all capsules</a></section>}
-
-          {(view !== 'stamps' || isConnected) && <section className="collection" aria-labelledby="collection-title">
-            <div className="section-heading"><h2 id="collection-title">{view === 'archive' ? 'The collection' : view === 'saved' ? 'Saved capsules' : 'Your stamps'}<span className="section-count">{filtered.length.toString().padStart(2, '0')}</span></h2>{view === 'archive' && <span className="collection-note">Small records. Lasting impressions.</span>}{view === 'stamps' && ownStamps.length > 0 && <button className="text-button" onClick={() => downloadJson(ownStamps, 'wheel-archive-stamps.json')}><Icon name="download" size={17}/>Export all stamps</button>}</div>
-            <div className="collection-toolbar"><div className="search-field"><label htmlFor="capsule-search" className="sr-only">Search capsules</label><Icon name="search" size={19}/><input id="capsule-search" name="capsule-search" type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Search by name or settlement…" autoComplete="off"/>{query && <button className="clear-search" aria-label="Clear search" onClick={() => setQuery('')}><Icon name="close" size={17}/></button>}</div><div className="filter-group"><label className="select-wrap"><Icon name="archive" size={16}/><span className="sr-only">Filter by month</span><select aria-label="Filter by month" value={month} onChange={e => setMonth(e.target.value)}><option value="all">All months</option><option value="2026-10">October 2026</option><option value="2026-09">September 2026</option></select><Icon name="down" size={16}/></label><label className="select-wrap"><span className="sr-only">Sort capsules</span><select aria-label="Sort capsules" value={sort} onChange={e => setSort(e.target.value)}><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="title">Name A–Z</option></select><Icon name="down" size={16}/></label></div></div>
-            <p className="sr-only" role="status">{filtered.length} {filtered.length === 1 ? 'capsule' : 'capsules'} found{query ? ` for ${query}` : ''}.</p>
-            {filtered.length ? <div className="capsule-grid">{filtered.map(c => <CapsuleCard key={c.id} capsule={c} saved={saved.includes(c.id)} stamped={ownStamps.some(s => s.capsuleId === c.id)} onSave={() => toggleSave(c.id)} onOpen={() => openCapsule(c)}/>)}</div> : <div className="empty-state"><span className="empty-icon"><Icon name={view === 'saved' && !query ? 'bookmark' : view === 'stamps' ? 'stamp' : 'search'} size={28}/></span><h3>{query || month !== 'all' ? 'No capsules found.' : view === 'saved' ? 'Make room for a favorite.' : 'Your first stamp is waiting.'}</h3><p>{query || month !== 'all' ? `Nothing matches ${query ? `“${query}”` : 'this month'}. Try another search or clear your filters.` : view === 'saved' ? 'Use the bookmark on a capsule to keep it in this collection.' : 'Open a capsule and sign a keepsake with your connected address.'}</p>{query || month !== 'all' ? <button className="button secondary" onClick={resetFilters}>Clear filters<Icon name="close" size={16}/></button> : <a className="button secondary" href="#/archive">Explore capsules<Icon name="arrow" size={17}/></a>}</div>}
-            {filtered.length > 0 && <div className="collection-end"><span className="small muted">{view === 'archive' ? `All ${filtered.length} exhibition capsules, each a different turn.` : `${filtered.length} ${filtered.length === 1 ? 'capsule' : 'capsules'} in this collection.`}</span><WheelMark size={20}/></div>}
-          </section>}
-
-          {view === 'archive' && <section className="stamp-invitation"><div className="printed-stamp" aria-hidden="true"><WheelMark size={42}/><span>I was here</span></div><div><h2>The turn is shared.<br/>The stamp is yours.</h2><p>Find a capsule that means something.<br/>Leave a signed mark on your own address.</p></div><button className="text-button" onClick={() => openCapsule(latest)}>Leave your first stamp<Icon name="arrow" size={19}/></button></section>}
-          <footer className="page-footer"><span className="small">A capsule per settlement. A little history to keep.</span><button className="small text-button" onClick={() => setInfo('privacy')}>Stored in your browser<Icon name="info" size={15}/></button></footer>
+        <header className="topbar"><div className="breadcrumb"><span>Archive</span><span>/</span><span>All capsules</span></div><div className="topbar-actions"><span className="network-label">Sepolia testnet</span><button className="text-button" onClick={feed.refresh} disabled={feed.refreshing}><Icon name="refresh" size={16}/>{feed.refreshing ? 'Refreshing…' : 'Refresh'}</button></div></header>
+        <main id="main" tabIndex={-1}>
+          <div className="page-heading"><div><h1>Every turn, kept<span className="heading-dot">.</span></h1><p>Every settled batch of Squeekchain rounds becomes a sealed capsule.</p></div><button className="text-button how-button" onClick={() => setInfo(true)}>How it works<Icon name="diagonal" size={17}/></button></div>
+          <div className={`feed-notice${stale ? ' is-stale' : ''}`} role="status">{stale ? `API unreachable (${failed.join(', ')}); ${hasSnapshot ? `showing the last good snapshot${dataRange && dataRange !== range ? ` for ${dataRange}; ${range} is unavailable` : ''}.` : 'live values are unknown. Try Refresh.'}` : feed.refreshing && !hasSnapshot ? 'Reading Squeekchain…' : 'Live from Squeekchain · refreshes every 15 seconds'}</div>
+          <ProgressRing status={feed.status.data} stale={feed.status.unavailable}/>
+          {latest ? <section className="featured" aria-labelledby="featured-title"><div className="featured-art"><span className="art-caption">Latest settled capsule</span><WheelArt capsule={latest}/><span className="art-edition">Round {latest.round}</span></div><div className="featured-copy"><div className="featured-title-row"><h2 id="featured-title">Round {latest.round}</h2><span className="sealed-label"><Icon name="check" size={15}/>Sealed</span></div><p className="featured-description">{capsuleLine(latest)}</p><CapsuleFacts capsule={latest}/><div className="featured-actions"><a className="button primary" href={`#capsule-${latest.round}`}>Open capsule<Icon name="arrow" size={18}/></a><button className="button secondary" onClick={() => setStamp(latest)}><Icon name="stamp" size={18}/>Stamp</button></div><a className="transaction-link small" href={`${TX_EXPLORER}${latest.tx}`} target="_blank" rel="noopener noreferrer">View settlement transaction<Icon name="diagonal" size={14}/></a></div></section>
+          : <section className="empty-feature" aria-labelledby="empty-title"><WheelMark size={72}/><div><h2 id="empty-title">{feed.archive.unavailable ? 'Waiting for the next connection.' : feed.archive.data ? 'No settlements in this range.' : 'Opening the archive…'}</h2><p>{feed.archive.unavailable ? 'Capsules will appear when the live feed returns.' : feed.archive.data ? 'Choose another range to explore settled rounds.' : 'Each settlement will arrive with its own seal and record.'}</p><button className="button primary" onClick={feed.refresh} disabled={feed.refreshing}>{feed.refreshing ? 'Reading the feed…' : 'Retry live feed'}<Icon name="arrow" size={18}/></button></div></section>}
+          <section className="collection" id="collection" aria-labelledby="collection-title"><div className="section-heading"><h2 id="collection-title">The collection<span className="section-count">{feed.archive.data?.capsules.length ?? '?'}</span></h2><div className="range-switch" role="group" aria-label="Archive range">{RANGES.map(value => <button key={value} aria-pressed={range === value} onClick={() => setRange(value)}>{value}</button>)}</div></div>
+            <p className="summary-line" role="status">{feed.archive.data ? `${dataRange} · ${summaryLine(feed.archive.data.summary)}` : 'Archive summary unknown'}{feed.archive.unavailable && feed.archive.data && ' · last snapshot'}{feed.refreshing && ' · updating'}</p>
+            {feed.archive.data?.capsules.length ? <div className="capsule-grid">{feed.archive.data.capsules.map(capsule => <CapsuleCard key={capsule.round} capsule={capsule}/>)}</div> : <p className="collection-empty muted">{feed.archive.unavailable ? 'Try Refresh, or return when the feed is available.' : feed.archive.data ? 'No capsules returned. Try 7d or 30d.' : 'Waiting for settled rounds…'}</p>}
+          </section>
+          <section className="archive-context" aria-label="Wheel context"><div><span className="muted">Cumulative work</span><strong>{formatNumber(feed.status.data?.cumulativeWorkUnits)}</strong></div><div><span className="muted">Settled through round</span><strong>{feed.status.data?.settledThroughRound ?? 'Unknown'}</strong></div><div><span className="muted">Total minted</span><strong>{feed.supply.data ?? 'Unknown'}</strong></div></section>
+          <footer className="page-footer"><span className="small muted">A capsule per settlement. A little history to keep.</span><a className="text-button small" href="./overlay.html?panel=1">Open OBS overlay<Icon name="diagonal" size={15}/></a></footer>
         </main>
       </div>
     </div>
-    <div className={`notice${notice ? ' visible' : ''}`} role="status"><span>{notice}</span>{notice && <button className="icon-button" aria-label="Dismiss notification" onClick={() => setNotice('')}><Icon name="close" size={17}/></button>}</div>
-    {selected && !connectOpen && <Modal title={`Capsule ${capsuleNumber(selected.id)}`} onClose={() => { location.hash = `/${previousView.current}`; }} className="capsule-modal">
-      <div className="capsule-detail-art"><WheelArt theme={selected.theme} shape={selected.shape}/><span className="art-caption">Exhibition collection</span></div>
-      <div className="detail-title"><h3>{selected.title}</h3><button className={`icon-button save-button${saved.includes(selected.id) ? ' saved' : ''}`} aria-pressed={saved.includes(selected.id)} aria-label={`${saved.includes(selected.id) ? 'Unsave' : 'Save'} ${selected.title}`} onClick={() => toggleSave(selected.id)}><Icon name="bookmark"/></button></div>
-      <p className="detail-story">{selected.story}</p>
-      <dl className="detail-facts"><div><dt>Settlement</dt><dd>{capsuleNumber(selected.id)}</dd></div><div><dt>Settled on</dt><dd>{formatDate(selected.date)}</dd></div><div><dt>Form</dt><dd>{String(selected.shape + 1).padStart(2, '0')} / {selected.turns} turns</dd></div></dl>
-      <p className="small muted exhibition-disclosure">This is an illustrative settlement, not a live or verified onchain record.</p>
-      <StampPanel capsule={selected} stamps={stamps} onStamp={addStamp} onConnect={() => setConnectOpen(true)}/>
-    </Modal>}
-    {route.startsWith('capsule/') && !selected && <Modal title="Capsule not found" onClose={() => { location.hash = '/archive'; }}><p>This capsule is not part of the exhibition collection.</p><a className="button primary" href="#/archive">Return to the archive</a></Modal>}
-    {connectOpen && <WalletSheet onClose={() => setConnectOpen(false)}/>}
-    {info && <Modal title={info === 'about' ? 'A little history to keep.' : 'Your collection stays with you.'} onClose={() => setInfo(null)} className="info-modal">{info === 'about' ? <>
-      <WheelMark size={48}/><p className="modal-intro">Wheel Archive gives each settlement a capsule: a form, a moment, and a place for your own mark.</p>
-      <ol className="how-steps"><li><span>01</span><div><h3>Find a turn.</h3><p>Explore six original capsules in this exhibition collection. Each one represents an illustrative settlement.</p></div></li><li><span>02</span><div><h3>Keep it close.</h3><p>Save a capsule with its bookmark. Your saved collection stays in this browser.</p></div></li><li><span>03</span><div><h3>Leave your stamp.</h3><p>Connect your wallet and sign a personal message. The signature binds the capsule to your address. Download a receipt to keep a copy.</p></div></li></ol>
-      <p className="info-note">The archive is an exhibition, with no live settlement feed. Stamps are local keepsakes, not tokens or onchain transactions.</p>
-    </> : <>
-      <p className="modal-intro">Bookmarks and signed stamps are saved in this browser’s local storage. They are not shared with other visitors or synced between devices.</p>
-      <p>Clearing site data removes this collection. Export your stamps from My stamps, or download a receipt inside any stamped capsule.</p><p>Wallet connection uses your chosen wallet provider. A stamp asks only for a readable message signature. Your keys stay in your wallet. Smart wallet signature verification may contact the public Base RPC.</p>
-      <p className="info-note">To remove a saved capsule, select its bookmark again. To disconnect your wallet, open the address control in the header.</p>
-    </>}</Modal>}
+    {round && !stamp && <Modal title={`Capsule · round ${round}`} onClose={close} className="capsule-modal">{selected ? <>
+      <div className="capsule-detail-art"><WheelArt capsule={selected}/></div><p className="detail-story">{capsuleLine(selected)}</p><CapsuleFacts capsule={selected}/><div className="detail-block">Settled at block <b>{selected.block}</b></div>
+      <a className="transaction-detail" href={`${TX_EXPLORER}${selected.tx}`} target="_blank" rel="noopener noreferrer"><span>Settlement transaction on Sepolia<Icon name="diagonal" size={15}/></span><code>{selected.tx}</code></a>
+      <div className="detail-actions"><button className="button primary" onClick={() => setStamp(selected)}><Icon name="stamp" size={18}/>Stamp this capsule</button><button className="button secondary" onClick={() => void copy(selected)}><Icon name="copy" size={18}/>Copy link</button></div><p className="copy-status" role="status">{notice}</p>{copyFallback && <input aria-label="Capsule link" className="copy-fallback" readOnly value={copyFallback} onFocus={e => e.currentTarget.select()}/>}
+    </> : <div className="missing-capsule"><p>{feed.refreshing ? 'Looking for this round…' : feed.archive.unavailable ? 'The API is unreachable. This capsule cannot be checked yet.' : 'This round is not in the API’s last 30 days of settlements.'}</p><button className="button secondary" onClick={feed.refresh} disabled={feed.refreshing}>Retry live feed</button><button className="text-button" onClick={close}>Return to the collection</button></div>}</Modal>}
+    {stamp && <Suspense fallback={<Modal title="Preparing stamp" onClose={() => setStamp(null)}><p>Loading wallet options…</p></Modal>}><StampPanel capsule={stamp} onClose={() => setStamp(null)}/></Suspense>}
+    {info && <Modal title="A turn settles. A story stays." onClose={() => setInfo(false)} className="info-modal"><p>Every settled batch of Squeekchain rounds becomes a sealed capsule.</p><ol className="how-steps"><li><h3>Read a settled round.</h3><p>The API supplies the work, completed blocks and transaction. The seal’s spokes grow with work; its outer arc fills over 40 completed blocks.</p></li><li><h3>Keep the link.</h3><p>Each capsule has a shareable round link. Its transaction hash fixes its seal, so the same record looks the same every time.</p></li><li><h3>Leave a stamp.</h3><p>A stamp is a zero-value transaction to your own address on Sepolia with the round in its data. It uses test ETH for gas. Your wallet is opened only when you choose to stamp.</p></li></ol><p className="info-note">There are no bookmarks, saved receipts or browser storage. Last-good API snapshots stay in memory until you close or reload the page.</p><a className="text-button" href={`${API}/status`} target="_blank" rel="noopener noreferrer">View the Squeekchain status source<Icon name="diagonal" size={16}/></a></Modal>}
   </>;
 }
-
-function CapsuleCard({ capsule, saved, stamped, onSave, onOpen }: { capsule: Capsule; saved: boolean; stamped: boolean; onSave: () => void; onOpen: () => void }) {
-  return <article className="capsule-card"><div className="card-art"><a href={`#/capsule/${capsule.id}`} aria-label={`Explore ${capsule.title}`}><WheelArt theme={capsule.theme} shape={capsule.shape}/></a><button className={`icon-button card-bookmark${saved ? ' saved' : ''}`} aria-label={`${saved ? 'Unsave' : 'Save'} ${capsule.title}`} aria-pressed={saved} onClick={onSave}><Icon name="bookmark" size={18}/></button>{stamped && <span className="stamped-label"><Icon name="check" size={14}/>Stamped</span>}</div><div className="card-content"><div className="card-meta"><span>Settlement {capsuleNumber(capsule.id)}</span><span>{formatDate(capsule.date).replace(' 2026', '')}</span></div><h3><a href={`#/capsule/${capsule.id}`}>{capsule.title}</a></h3><p>{capsule.note}</p><div className="card-footer"><span className="small muted">{String(capsule.shape + 1).padStart(2, '0')} / Wheel study</span><button className="icon-button" aria-label={`Open ${capsule.title}`} onClick={onOpen}><Icon name="diagonal" size={19}/></button></div></div></article>;
+function CapsuleFacts({ capsule }: { capsule: Capsule }) {
+  return <dl className="capsule-facts"><div><dt>Round</dt><dd>{capsule.round}</dd></div><div><dt>Work added</dt><dd>{formatNumber(capsule.work)}</dd></div><div><dt>Blocks completed</dt><dd>{formatNumber(capsule.blocks)}</dd></div></dl>;
+}
+function CapsuleCard({ capsule }: { capsule: Capsule }) {
+  return <article className="capsule-card"><a className="card-art" href={`#capsule-${capsule.round}`} aria-label={`Open capsule for round ${capsule.round}`}><WheelArt capsule={capsule}/><span className="card-open"><Icon name="diagonal" size={18}/></span></a><div className="card-copy"><div className="card-title"><h3><a href={`#capsule-${capsule.round}`}>Round {capsule.round}</a></h3><span className="small muted">Block {capsule.block}</span></div><p className="card-line">{capsuleLine(capsule)}</p><CapsuleFacts capsule={capsule}/><a className="transaction-link small" href={`${TX_EXPLORER}${capsule.tx}`} target="_blank" rel="noopener noreferrer">Settlement transaction<Icon name="diagonal" size={14}/></a></div></article>;
 }

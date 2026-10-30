@@ -1,0 +1,29 @@
+@font-face { font-family: 'DM Sans'; src: url('./fonts/dm-sans-latin.woff2') format('woff2'); font-style: normal; font-weight: 100 1000; font-display: swap; }
+html, body { background: transparent !important; margin: 0; }
+* { box-sizing: border-box; }
+body { color: #edf0e7; font: 14px/1.5 'DM Sans', sans-serif; -webkit-font-smoothing: antialiased; }
+[hidden] { display: none !important; }
+#widget { width: min(100%, var(--widget-width, 440px)); height: var(--widget-height, auto); padding: 20px; overflow: auto; }
+#widget.panel { background: #111714f2; border: 1px solid #35433a; border-radius: 10px; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-block-end: 20px; }
+h1, h2, p { margin: 0; }
+h1 { font-size: 20px; line-height: 1.2; font-weight: 600; letter-spacing: -.025em; }
+h1 span { color: #d5ec92; }
+h2 { font-size: 16px; line-height: 1.3; font-weight: 600; }
+p { color: #a6afa5; overflow-wrap: anywhere; }
+.testnet { color: #a6afa5; font-size: 12px; }
+.forming { display: flex; gap: 18px; align-items: center; }
+.progress-ring { width: 92px; height: 92px; position: relative; flex-shrink: 0; display: grid; place-items: center; font-variant-numeric: tabular-nums; }
+.progress-ring svg { position: absolute; width: 100%; height: 100%; fill: none; stroke-width: 3; }
+.track { stroke: #35433a; } #fill { stroke: #79c8bb; }
+#state { color: #79c8bb; margin-block: 3px; }
+#remaining, #block, #api-note { font-size: 12px; }
+#api-note { margin-block: 12px 20px; }
+#api-note.unavailable { color: #f5b29d; }
+#capsule { border-block-start: 1px solid #35433a; padding-block-start: 16px; display: grid; grid-template-columns: 116px minmax(0, 1fr); gap: 16px; align-items: center; }
+#seal svg { width: 100%; display: block; }
+#line { margin-block: 6px 10px; }
+#facts { font-size: 12px; }
+a { color: #a6afa5; text-decoration: underline; text-underline-offset: 3px; min-height: 32px; display: inline-flex; align-items: center; font-size: 12px; }
+a:focus-visible { outline: 2px solid #d5ec92; outline-offset: 3px; }
+@media (max-width: 350px) { #widget { padding: 16px; } #capsule { grid-template-columns: 80px minmax(0, 1fr); gap: 12px; } .progress-ring { width: 76px; height: 76px; } }

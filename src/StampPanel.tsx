@@ -1,56 +1,36 @@
-import { useState } from 'react';
-import { useConnection, useSignMessage, useSwitchChain } from 'wagmi';
-import { createPublicClient, getAddress, http, verifyMessage } from 'viem';
+import { useRef, useState } from 'react';
+import { WagmiProvider, useConnection, useDisconnect, useSwitchChain, useSendTransaction } from 'wagmi';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { stringToHex } from 'viem';
+import { TX_EXPLORER, type Capsule } from '../public/archive-core.js';
+import { walletConfig, archiveChain } from './wallet';
+import { WalletSheet } from './WalletSheet';
+import { Modal } from './Modal';
 import { Icon } from './Icons';
-import { WheelMark } from './Icons';
-import type { Capsule } from './data';
-import { capsuleNumber } from './data';
-import { archiveChain } from './wallet';
-import { downloadJson, type Stamp } from './storage';
-
-export function StampPanel({ capsule, stamps, onStamp, onConnect }: { capsule: Capsule; stamps: Stamp[]; onStamp: (s: Stamp) => void; onConnect: () => void }) {
-  const { address, isConnected, chainId } = useConnection();
-  const { signMessageAsync, isPending } = useSignMessage();
+export default function StampPanel(props: { capsule: Capsule; onClose: () => void }) {
+  const [client] = useState(() => new QueryClient({ defaultOptions: { queries: { retry: false } } }));
+  return <WagmiProvider config={walletConfig} reconnectOnMount={false}><QueryClientProvider client={client}><StampDialog {...props}/></QueryClientProvider></WagmiProvider>;
+}
+function StampDialog({ capsule, onClose }: { capsule: Capsule; onClose: () => void }) {
+  const { address, isConnected, chainId } = useConnection(), { disconnect } = useDisconnect();
   const { switchChainAsync, isPending: switching } = useSwitchChain();
-  const [working, setWorking] = useState(false);
-  const [error, setError] = useState('');
-  const stamp = stamps.find(s => s.capsuleId === capsule.id && s.address.toLowerCase() === address?.toLowerCase());
-  const busy = working || isPending || switching;
-  const sign = async () => {
-    if (!isConnected || !address) { onConnect(); return; }
-    setError('');
-    if (chainId !== archiveChain.id) {
-      try { await switchChainAsync({ chainId: archiveChain.id }); } catch { setError('Switch declined. Select Base in your wallet, then try again.'); }
-      return;
-    }
-    setWorking(true);
-    const owner = getAddress(address);
-    const createdAt = new Date().toISOString();
-    const message = `Wheel Archive · Personal stamp\n\nCollection: Exhibition (sample settlements)\nCapsule: ${capsuleNumber(capsule.id)} · ${capsule.title}\nAddress: ${owner}\nChain: Base (${archiveChain.id})\nWebsite: ${location.origin}${location.pathname}\nCreated: ${createdAt}\n\nI leave this keepsake on my own address. This message authorizes no transaction, payment, token approval, or login. The stamp is stored in this browser only.`;
+  const { sendTransactionAsync, isPending } = useSendTransaction();
+  const [error, setError] = useState(''), [hash, setHash] = useState('');
+  const pending = useRef(false);
+  const send = async () => {
+    if (pending.current || !isConnected || !address || chainId !== archiveChain.id) return;
+    pending.current = true; setError('');
     try {
-      const signature = await signMessageAsync({ message });
-      let valid = await verifyMessage({ address: owner, message, signature }).catch(() => false);
-      if (!valid) {
-        const publicClient = createPublicClient({ chain: archiveChain, transport: http('https://mainnet.base.org', { timeout: 12000, retryCount: 0 }) });
-        valid = await publicClient.verifyMessage({ address: owner, message, signature });
-      }
-      if (!valid) throw new Error('Signature verification failed');
-      onStamp({ version: 1, collection: 'wheel-archive-exhibition', capsuleId: capsule.id, address: owner, chainId: archiveChain.id, createdAt, message, signature });
-    } catch (e) {
-      setError(/reject|denied/i.test(String(e)) ? 'Signature declined. Your address has not been stamped. Try again when you’re ready.' : 'The signature could not be verified. Check your wallet and connection, then try again.');
-    } finally { setWorking(false); }
+      const result = await sendTransactionAsync({ account: address, to: address, value: 0n, data: stringToHex(`wheel-archive:${capsule.round}`), chainId: archiveChain.id });
+      setHash(result);
+    } catch (e) { setError(/reject|denied/i.test(String(e)) ? 'Stamp declined. Nothing was submitted by this request.' : 'The wallet did not return a transaction hash. Check its activity before trying again.'); }
+    finally { pending.current = false; }
   };
-  return <section className={`stamp-panel${stamp ? ' is-stamped' : ''}`} aria-labelledby="stamp-heading">
-    <div className="stamp-panel-title"><WheelMark size={32}/><div><h3 id="stamp-heading">{stamp ? 'You were here.' : 'Leave your mark.'}</h3><p className="small muted">{stamp ? 'A little proof of a turn remembered.' : 'One capsule. Your address. A personal keepsake.'}</p></div></div>
-    {stamp ? <>
-      <div className="stamp-success"><Icon name="check"/><span>Signed by your address</span></div>
-      <code className="full-address">{stamp.address}</code>
-      <button className="button secondary full" onClick={() => downloadJson(stamp, `wheel-stamp-${capsule.id}.json`)}><Icon name="download" size={18}/>Download stamp receipt</button>
-    </> : <>
-      <p className="small">A free wallet signature, saved in this browser. It does not create an onchain record.</p>
-      <button className="button primary full" disabled={busy} onClick={() => void sign()}><Icon name={chainId && chainId !== archiveChain.id ? 'wallet' : 'stamp'} size={18}/>{busy ? (switching ? 'Switching to Base…' : isPending ? 'Confirm in your wallet…' : 'Verifying signature…') : !isConnected ? 'Connect to leave a stamp' : chainId !== archiveChain.id ? 'Switch to Base' : 'Sign and leave a stamp'}</button>
-      {isConnected && address && <p className="small muted address-hint">Signing as <code>{getAddress(address)}</code></p>}
-    </>}
+  return <Modal title={`Stamp round ${capsule.round}`} onClose={onClose} className="stamp-modal"><p className="stamp-explanation">Stamp sends a 0 ETH transaction to your own address on Sepolia carrying “wheel-archive:{capsule.round}” as data; test ETH pays the network gas.</p>
+    {hash ? <div className="stamp-success" role="status"><Icon name="check" size={28}/><h3>Stamp submitted</h3><p className="muted">Your wallet returned this hash; confirmation is shown on the explorer.</p><a className="transaction-detail" target="_blank" rel="noopener noreferrer" href={`${TX_EXPLORER}${hash}`}><code>{hash}</code><span>View stamp on Sepolia<Icon name="diagonal" size={16}/></span></a><p className="small muted">Copy the hash to keep it. This page does not save receipts.</p></div>
+    : !isConnected || !address ? <WalletSheet/> : <><div className="connected-address"><span className="small muted">Stamping from and to</span><code>{address}</code><button className="text-button small" onClick={() => disconnect()}>Disconnect</button></div>
+      {chainId !== archiveChain.id ? <button className="button primary full" disabled={switching} onClick={async () => { setError(''); try { await switchChainAsync({ chainId: archiveChain.id }); } catch { setError('Network change declined. Switch your wallet to Sepolia and try again.'); } }}>{switching ? 'Switching…' : 'Switch to Sepolia'}</button> : <button className="button primary full" disabled={isPending} onClick={() => void send()}><Icon name="stamp" size={18}/>{isPending ? 'Waiting for your wallet…' : 'Send zero-value stamp'}</button>}
+      <p className="small muted stamp-note">No contract or approval. The wallet shows the transaction before you confirm.</p></>}
     <p className="inline-error" role="status">{error}</p>
-  </section>;
+  </Modal>;
 }

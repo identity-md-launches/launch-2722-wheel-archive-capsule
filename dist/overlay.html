@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en" style="background: transparent">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Wheel Archive · OBS overlay</title>
+  <meta name="description" content="A transparent live Squeekchain progress ring and latest settlement capsule for OBS." />
+  <meta property="og:title" content="Wheel Archive · OBS overlay" />
+  <meta property="og:image" content="./share.png" />
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+  <link rel="stylesheet" href="./overlay.css" />
+</head>
+<body style="background: transparent">
+  <main id="widget" aria-label="Wheel Archive stream overlay">
+    <header><h1>Wheel Archive<span>.</span></h1><span class="testnet">Sepolia</span></header>
+    <section class="forming" aria-label="Forming now">
+      <div class="progress-ring" role="img" aria-label="Block progress unknown"><svg viewBox="0 0 120 120" aria-hidden="true"><circle class="track" cx="60" cy="60" r="51"/><circle id="fill" cx="60" cy="60" r="51" pathLength="1" stroke-dasharray="0 1" transform="rotate(-90 60 60)"/></svg><span id="percentage">?</span></div>
+      <div><h2>Forming now</h2><p id="state">Unknown</p><p id="remaining">Remaining work unknown</p><p id="block">Block unknown</p></div>
+    </section>
+    <p id="api-note" role="status">Reading Squeekchain…</p>
+    <section id="capsule" aria-label="Newest capsule"><div id="seal"></div><div><h2 id="capsule-title">Waiting for a settled round</h2><p id="line">The newest capsule will appear when the live feed connects.</p><p id="facts"></p><a id="transaction" hidden target="_blank" rel="noopener noreferrer">View settlement on Sepolia ↗</a></div></section>
+    <noscript>JavaScript is needed to read the live feed.</noscript>
+  </main>
+  <script type="module" src="./overlay.js"></script>
+</body>
+</html>
