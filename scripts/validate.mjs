@@ -23,16 +23,16 @@ const url = `http://127.0.0.1:${server.address().port}/preview/`;
 const results = [];
 async function check(name, run) { try { await run(); results.push({ name, passed:true }); console.log(`PASS ${name}`); } catch(e) { results.push({ name, passed:false, error:e.message }); console.log(`FAIL ${name}: ${e.message}`); } }
 const hash = value => `0x${createHash('sha256').update(value).digest('hex')}`;
-const rows = Array.from({ length:16 }, (_, i) => ({ round:1000-i, blockHeight:8000-i, workAdded:[0,1,399,400,981][i%5], completedBlockCount:i*4, transactionHash:hash(`settlement fixture ${i}`) }));
-function model() { return { requests:[], failure:false, progress:250000000, state:'running', delay7:false }; }
+const rows = Array.from({ length:16 }, (_, i) => ({ settledThroughRound:String(1000-i), blockHeight:String(8000-i), workAdded:String([0,1,399,400,981][i%5]), completedBlockCount:String(i*4), transactionHash:hash(`settlement fixture ${i}`) }));
+function model() { return { requests:[], failure:false, progress:250000000, state:'RUNNING', delay7:false }; }
 async function fixtures(context, m) {
   await context.route('https://api.squeekchain.com/v1/**', async route => {
     const path = new URL(route.request().url()); m.requests.push(path.pathname + path.search);
     let body;
     if (m.failure) body = { status:'unavailable' };
-    else if (path.pathname.endsWith('/status')) body = { status: { measurement: { coreStatus:m.state, rpmMilli:32450, cumulativeWorkUnits:92840 }, builder:{anchor:{ blockHeight:8001, blockProgress:m.progress, workPerThousandBlocks:1987, settledThroughRound:1000 }} } };
+    else if (path.pathname.endsWith('/status')) body = { measurement: { coreStatus:m.state, rpmMilli:32450, cumulativeWorkUnits:92840 }, builder:{anchor:{ blockHeight:'8001', blockProgress:String(m.progress), workPerThousandBlocks:'1987', settledThroughRound:'1000' }} };
     else if (path.pathname.endsWith('/economy/state')) body = { economy:{supply:{totalMintedBaseUnits:'1234567890000000000000001'}} };
-    else { const range = path.searchParams.get('range'), count = { '24h':12,'7d':14,'30d':16 }[range]; if (range === '7d' && m.delay7) await new Promise(r=>setTimeout(r,350)); body={settlements:{recentSettlements:rows.slice(0,count),summary:{settlementCount:count,totalWorkAdded:range==='24h'?1520:range==='7d'?7520:30520}}}; }
+    else { const range = path.searchParams.get('range'), count = { '24h':12,'7d':14,'30d':16 }[range]; if (range === '7d' && m.delay7) await new Promise(r=>setTimeout(r,350)); body={status:'available',recentSettlements:rows.slice(0,count),summary:{settlementCount:String(count),workAdded:String(range==='24h'?1520:range==='7d'?7520:30520)}}; }
     await route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify(body) }).catch(()=>{});
   });
 }
@@ -78,7 +78,7 @@ try {
   await check('progress updates and coreStatus flips running to asleep',async()=>{
     assert.equal(await page.locator('.progress-ring > span').innerText(),'25.0%');
     assert.match(await page.locator('.forming-copy').innerText(),/2 work/);
-    m.progress=875000000; m.state='asleep'; await page.getByRole('button',{name:'Refresh',exact:true}).click();
+    m.progress=875000000; m.state='IDLE'; await page.getByRole('button',{name:'Refresh',exact:true}).click();
     await page.getByText('87.5%',{exact:true}).waitFor(); assert.match(await page.locator('.wheel-state').innerText(),/Asleep/);
     assert.equal(await page.locator('.ring-fill').getAttribute('stroke-dasharray'),'0.875 1');
   });
@@ -135,7 +135,7 @@ try {
     assert.deepEqual(await p.evaluate(()=>[getComputedStyle(document.documentElement).backgroundColor,getComputedStyle(document.body).backgroundColor]),['rgba(0, 0, 0, 0)','rgba(0, 0, 0, 0)']);
     assert.deepEqual(await p.locator('#widget').evaluate(el=>[el.clientWidth,el.clientHeight]),[478,418]);
     assert.equal(await p.locator('#seal').innerHTML(),firstSeal);assert.match(await p.locator('#state').innerText(),/Asleep/);
-    m.progress=500000000;m.state='running';await p.getByText('50.0%',{exact:true}).waitFor();assert.equal(await p.locator('#state').innerText(),'Running');await p.screenshot({path:`${scratch}/shots/overlay-fixture.png`,omitBackground:true,clip:{x:0,y:0,width:480,height:420}});
+    m.progress=500000000;m.state='RUNNING';await p.getByText('50.0%',{exact:true}).waitFor();assert.equal(await p.locator('#state').innerText(),'Running');await p.screenshot({path:`${scratch}/shots/overlay-fixture.png`,omitBackground:true,clip:{x:0,y:0,width:480,height:420}});
     const before=await p.locator('#seal').innerHTML();m.failure=true;await p.getByText(/API unreachable/).waitFor();assert.equal(await p.locator('#seal').innerHTML(),before);assert.equal(await p.locator('#percentage').innerText(),'50.0%');
     assert.deepEqual(overlayErrors,[]);await p.close();m.failure=false;
     const minimal=await context.newPage();await minimal.goto(`${url}overlay.html?capsule=0`,{waitUntil:'networkidle'});assert.equal(await minimal.locator('#capsule').isVisible(),false);await minimal.close();

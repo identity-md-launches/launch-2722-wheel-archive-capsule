@@ -4,7 +4,7 @@ Every settled batch of Squeekchain rounds becomes a sealed capsule.
 
 This v2 replaces v1’s exhibition records and saved collections with the Squeekchain API, deterministic SVG seals, a live forming ring, capsule links, zero-value Sepolia stamps and a transparent OBS overlay. It retains the sidebar, featured record, collection layout, DM Sans / DM Mono typography and chartreuse actions. The supplied v1 was light; this revision implements the dark palette requested in the follow-up.
 
-**Live-service limitation:** the API returned HTTP 403 Cloudflare challenges for every supplied endpoint during this run, including in Chromium. Ten *live* capsules could therefore not be verified. The production site contains no sample settlements or fallback fixtures. An unavailable feed shows unknown values; after a successful read, an outage retains the last good snapshot in page memory. Fifteen isolated Chromium interaction checks passed with API/provider fixtures. See [validation](VALIDATION.md).
+**Revision verified against the live API (2026-10-30):** all five endpoint/range combinations returned JSON successfully. Chromium rendered ten live capsules in each range and the newest capsule in OBS. Settlement rounds now use `settledThroughRound`, and `IDLE` maps to Asleep. A simulated outage retained the real last-good snapshot. Nine live interaction groups and fifteen isolated fixture groups passed. See [validation](VALIDATION.md).
 
 ## Install, preview and rebuild
 
@@ -45,11 +45,11 @@ Archive data comes only from `https://api.squeekchain.com/v1`:
 | `/economy/state` | `economy.supply.totalMintedBaseUnits`, divided exactly by `1e18` |
 | `/settlements?range=24h\|7d\|30d` | `settlements.recentSettlements[]`, `settlements.summary` |
 
-The parser also accepts the endpoint object directly without its named envelope. Settlement records require numeric `round` (or `roundId`), `blockHeight` (or `blockNumber`), `workAdded`, `completedBlockCount`, and a 32-byte `transactionHash` (or `txHash`). These row field names are an explicit integration assumption because the challenge prevented inspection of the live payload. Invalid or unavailable responses retain the previous response; missing scalar measurements display Unknown. No number is synthesized from unavailable data. Summary text is derived from returned scalar fields, never computed from the displayed subset.
+The parser also accepts the endpoint object directly without its named envelope. Live settlement records provide `settledThroughRound`, `blockHeight`, `workAdded`, `completedBlockCount`, and a 32-byte `transactionHash`. Numeric strings are accepted. The legacy `round`/`roundId`, `blockNumber` and `txHash` aliases remain supported, with `settledThroughRound` taking precedence. Invalid or unavailable responses retain the previous response; missing scalar measurements display Unknown. No number is synthesized from unavailable data. Summary text is derived from returned scalar fields, never computed from the displayed subset.
 
 `public/archive-core.js` is shared by the archive and overlay. FNV-1a-32 hashes the lowercase UTF-8 hash text, starting at `0x811c9dc5` with prime `0x01000193`. Expansion feeds counter bytes 0–7 through the same state and emits each resulting word little-endian, producing 32 bytes. This convention is fixed and documented because the brief did not define the expansion convention. All arithmetic uses explicit 32-bit overflow. SVG coordinates are serialized to four decimals; there are no SVG IDs, image requests, libraries, canvas or random values in the seal.
 
-Spokes follow `clamp(6, 48, 6 + round(log2(workAdded + 2) * 4))`. Length and opacity use hash bytes, hue is `24 + byte[2] % 26`, the outer arc is `min(1, completedBlockCount / 40)` and the counter-arc is teal. A hash byte selects one factual voice line from rest (0 work), trot (1–399), or sprint (400+), followed by the exact round and block. The ring uses `blockProgress / 1e9`; remaining work is `ceil((1 - progress) * workPerThousandBlocks / 1000)`. Only `coreStatus` determines Running / Asleep; an unrecognized value is Unknown.
+Spokes follow `clamp(6, 48, 6 + round(log2(workAdded + 2) * 4))`. Length and opacity use hash bytes, hue is `24 + byte[2] % 26`, the outer arc is `min(1, completedBlockCount / 40)` and the counter-arc is teal. A hash byte selects one factual voice line from rest (0 work), trot (1–399), or sprint (400+), followed by the exact round and block. The ring uses `blockProgress / 1e9`; remaining work is `ceil((1 - progress) * workPerThousandBlocks / 1000)`. Only `coreStatus` determines the state: `RUNNING` displays Running, `IDLE` and the legacy `asleep` display Asleep, case-insensitively; an unrecognized value is Unknown.
 
 ## Stamp on Sepolia
 
@@ -90,18 +90,17 @@ Both `html` and `body` are explicitly transparent, including before the styleshe
 node --test scripts/core.test.mjs
 npm run typecheck
 npm run build
-npx playwright install chromium webkit
 npm run validate
 node scripts/check-export.mjs
 ```
 
 `validate.mjs` owns and closes a bounded static preview under `/preview/`. Fixtures are injected by Playwright routing and never enter the production export. It tests records, range requests, races, progress/state, unavailable snapshots, deep links, copying and clipboard denial, keyboard focus, reflow, overlay options, absent wallets and a mocked self-transaction. It writes disposable output under `test/scratch/`.
 
-Final worker results: **7 core tests passed; typecheck and production build passed; 15 Chromium interaction groups passed; axe reported no tested WCAG A/AA violations on the archive and capsule dialog; taste@1 passed 16/16 on both the real unavailable-feed state and a populated fixture state.** Reflow was checked at 320, 390, 600, 800, 1024 and 1440px. Open capsule and Stamp are visible on the first 390 × 844 screen. Identical seal markup was checked after reload and in an independent browser context.
+Revision results: **9 core tests passed; typecheck and production build passed; 15 fixture interaction groups and 9 live interaction groups passed; axe reported no tested WCAG A/AA violations on the archive and capsule dialog; taste@1 passed 16/16 on the populated live export.** The new regression tests failed before the fixes and passed afterward. Reflow was checked at 320, 390, 600, 800, 1024 and 1440px with fixtures and at 320, 390 and 1440px with live data. Open capsule and Stamp are visible on the first 390 × 844 screen. Identical live seal markup was checked after reload and in an independent browser context.
 
-The runtime lacked Chrome and browser libraries. Chromium 140 / Playwright 1.55.1 and temporary libraries/fonts were installed outside the repository to run the checks; the locked production dependencies were used for the build. The newer Chrome download returned a regional 403. WebKit downloaded but could not create a page within a 12-second bounded probe, so its interaction group was explicitly skipped. `WHEEL_SKIP_WEBKIT=1` selects that recorded limitation. `WHEEL_PLAYWRIGHT`, `WHEEL_CHROMIUM` and `WHEEL_AXE` optionally point the test tools to externally installed modules/binaries; normal installations need none of them.
+The revision used the provided Playwright/Chromium tooling and installed the unchanged locked build dependencies in a temporary directory. No browser was installed. WebKit's executable was unavailable, so its interaction group was explicitly skipped. Physical wallets, Coinbase passkeys and real broadcasts remain unverified. `WHEEL_PLAYWRIGHT`, `WHEEL_CHROMIUM` and `WHEEL_AXE` optionally point the test tools to externally installed modules/binaries; normal installations need none of them.
 
-The pinned design probe was run on the final export with its prescribed output path. The canonical six-domain review is [VALIDATION.md](VALIDATION.md). Screenshots and machine-readable results are in `artifacts/`, which this checkout excludes from Git and the platform collects separately. These worker checks are not independent certification. Native browser zoom, screen readers, physical devices, WebKit rendering, the live API schema/count and real signing remain unverified.
+The pinned design probe was run on the final export with its prescribed output path. The canonical six-domain review is [VALIDATION.md](VALIDATION.md). Revision screenshots and machine-readable results were inspected under disposable `test/scratch/`; they are not submitted assets. These worker checks are not independent certification. Native browser zoom, screen readers, physical devices, WebKit rendering and real signing remain unverified.
 
 To regenerate the share card after editing `scripts/share-card.mjs`:
 

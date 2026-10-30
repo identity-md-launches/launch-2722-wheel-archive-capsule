@@ -4,7 +4,7 @@
 
 Wheel Archive is a reading room for Squeekchain settlements. A wheel seal carries the visual identity; the sidebar, featured record and repeated capsule layout retain the v1 composition. The follow-up requests a dark palette, implemented here over the supplied light v1. DM Sans, DM Mono, the chartreuse action and circular brand mark remain.
 
-Source values in `src/styles.css` are canonical for the archive. `public/overlay.css` implements the same roles for a dependency-free OBS page. The production export was inspected in Chromium at mobile and desktop sizes using isolated API fixtures and the real unavailable-feed state. No fixture is included in the runtime.
+Source values in `src/styles.css` are canonical for the archive. `public/overlay.css` implements the same roles for a dependency-free OBS page. The revised production export was inspected in Chromium at mobile and desktop sizes with live API data, isolated fixtures and a simulated outage retaining live records. No fixture is included in the runtime. The revision preserves the existing visual tokens, typography, components and responsive behavior.
 
 ## Colors
 
@@ -75,7 +75,7 @@ Controls use `--radius-control: 6px`, art and featured surfaces `--radius-surfac
 | `WheelMark`, `Icon` / `src/Icons.tsx` | Existing circular logo and consistent currentColor outline icons; decorative icons are hidden from assistive technology |
 | `WheelArt` / `src/WheelArt.tsx` | Receives a validated capsule and inserts only the shared deterministic SVG; no IDs or per-render variation |
 | `sealSVG`, `capsuleLine` / `public/archive-core.js` | Shared transaction fingerprint and factual register selection; used unchanged by the overlay |
-| `ProgressRing` / `src/ProgressRing.tsx` | Receives `status` and `stale`; changes fill from measured progress and text from coreStatus; unknown labels never masquerade as zero |
+| `ProgressRing` / `src/ProgressRing.tsx` | Receives `status` and `stale`; changes fill from measured progress and text from coreStatus; shared `forming()` maps RUNNING to Running and IDLE / asleep to Asleep, case-insensitively; unknown labels never masquerade as zero |
 | Featured record / `src/App.tsx` | Seal, voice, facts, primary Open capsule, secondary Stamp, settlement link |
 | `CapsuleCard`, `CapsuleFacts` / `src/App.tsx` | Same field order in feature, collection and detail: round, work, completed blocks; block and transaction remain available |
 | Range switch / `src/App.tsx` | Three native buttons with `aria-pressed`; refetch and display the response summary; retain and name the last range on failure |

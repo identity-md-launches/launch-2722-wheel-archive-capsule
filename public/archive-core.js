@@ -34,7 +34,7 @@ export function readSettlements(payload) {
   if (unavailable(settlements) || !Array.isArray(settlements.recentSettlements) || !object(settlements.summary)) throw new Error('Settlements unavailable');
   const capsules = settlements.recentSettlements.map(row => {
     if (!object(row)) throw new Error('Invalid settlement');
-    const round = identifier(row.round ?? row.roundId), block = identifier(row.blockHeight ?? row.blockNumber);
+    const round = identifier(row.settledThroughRound ?? row.round ?? row.roundId), block = identifier(row.blockHeight ?? row.blockNumber);
     const work = numeric(row.workAdded), blocks = integer(row.completedBlockCount), tx = row.transactionHash ?? row.txHash;
     if (round === null || block === null || work === null || blocks === null || typeof tx !== 'string' || !/^0x[0-9a-fA-F]{64}$/.test(tx)) throw new Error('Incomplete settlement');
     return { round, block, work, blocks, tx: tx.toLowerCase() };
@@ -47,7 +47,7 @@ export function forming(status) {
   const progress = status?.blockProgress === null || status?.blockProgress === undefined ? null : Math.max(0, Math.min(1, status.blockProgress / 1e9));
   const remaining = progress === null || status.workPerThousandBlocks === null ? null : Math.ceil((1 - progress) * status.workPerThousandBlocks / 1000);
   const core = status?.coreStatus?.toLowerCase();
-  return { progress, remaining, state: core === 'running' ? 'Running' : core === 'asleep' ? 'Asleep' : 'Unknown' };
+  return { progress, remaining, state: core === 'running' ? 'Running' : core === 'asleep' || core === 'idle' ? 'Asleep' : 'Unknown' };
 }
 // FNV-1a-32 over lowercase UTF-8 hash text. Expand the state by hashing counter
 // bytes 0..7, emitting each resulting word little-endian. Explicit 32-bit overflow.

@@ -59,3 +59,26 @@ test('settlements validate and sort numeric rounds; summary uses actual API valu
   assert.equal(summaryLine(result.summary), 'total work added: 800');
   assert.throws(() => readSettlements({ recentSettlements: [{ ...row, round: '<script>' }], summary: {} }));
 });
+test('live settlement fields preserve the capsule and returned summary', () => {
+  // Public API record captured 2026-10-30; neither round nor roundId is present.
+  const row = { settledThroughRound: '539', blockHeight: '4135', workAdded: '199', completedBlockCount: '17', transactionHash: '0xae5fab9c7d4ec6eff15a8e9fb9657345a6485b8dd7f6d96b0d675f651aa6e36c' };
+  const summary = { settlementCount: '143', activeRoundCount: '27', workAdded: '13297', completedBlockCount: '1141', archivedSettlementCount: '133' };
+  for (const settlements of [
+    { status: 'available', recentSettlements: [row], summary },
+    { settlements: { recentSettlements: [row], summary } },
+  ]) {
+    const result = readSettlements(settlements);
+    assert.deepEqual(result.capsules, [{ round: '539', block: '4135', work: 199, blocks: 17, tx: row.transactionHash }]);
+    assert.deepEqual(result.summary, summary);
+  }
+  const result = readSettlements({ recentSettlements: [{ ...row, round: '1', roundId: '2' }], summary });
+  assert.equal(result.capsules[0].round, '539', 'settledThroughRound is authoritative');
+});
+test('live IDLE status becomes Asleep without changing ring measurements', () => {
+  const payload = { measurement: { coreStatus: 'IDLE', rpmMilli: 0, cumulativeWorkUnits: '45957' }, builder: { anchor: { blockHeight: '4135', blockProgress: '35822082', workPerThousandBlocks: '11801', settledThroughRound: '569' } } };
+  const status = readStatus(payload);
+  assert.deepEqual(forming(status), { progress: .035822082, remaining: 12, state: 'Asleep' });
+  for (const coreStatus of ['RUNNING', 'running']) assert.equal(forming({ ...status, coreStatus }).state, 'Running');
+  for (const coreStatus of ['IDLE', 'idle', 'asleep']) assert.equal(forming({ ...status, coreStatus }).state, 'Asleep');
+  for (const coreStatus of [null, 'unavailable', 'unrecognized']) assert.equal(forming({ ...status, coreStatus }).state, 'Unknown');
+});

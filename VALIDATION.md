@@ -1,5 +1,44 @@
 # Wheel Archive v2 validation
 
+## Reopened revision: 2026-10-30
+
+Complete for the two reported defects. This section supersedes the earlier implementation's live-data limitation below. Only the shared parser/state mapping, regression checks, their production export and documentation changed; the visual design and wallet flow are retained. These are worker observations, not independent certification.
+
+| Finding / source | Reproduction before the fix | Fix and recheck |
+| --- | --- | --- |
+| `4115810f449a1fe27b5d45f9c0a952e60d9f66c0bea1ec945663258272b2acae` / `public/archive-core.js:37` | Unchanged available 24h JSON contained 10 settlements with `settledThroughRound` and no `round`/`roundId`; parsing threw `Incomplete settlement` | Prefer `settledThroughRound`, preserving the other fields and legacy aliases. The new unit test failed before the patch and passed afterward. Live Chromium rendered 10 capsules with seals, lines, round/work/blocks and matching settlement transaction links in all three ranges; returned summaries updated after each request; newest capsule appeared in OBS |
+| `8729e7b3cb757bd772a6462c21a278a28298bd6c3d09b265aad5912254c4ec6f` / `public/archive-core.js:51` | Unchanged status JSON had `coreStatus: IDLE`; `forming(readStatus(payload))` returned Unknown with progress `0.035822082` and remaining work `12` | Shared helper maps IDLE to Asleep case-insensitively. The new unit test failed before the patch and passed afterward. Live archive and OBS show Asleep, 3.6% and 12 work remaining. Fixture checks exercise RUNNING/IDLE transitions and changed progress; null, unavailable and unrecognized values remain Unknown |
+
+All five supplied endpoint/range combinations returned successful JSON. At the first capture, the newest displayed capsule was round 539, block 4135, work 199 and 17 completed blocks. The 24h summary reported settlementCount 143 versus 526 for 7d/30d; later browser refetches reported 144 versus 527. Summary values are live and may change; the browser checks compared against each returned response, not fixed counts. The API returns ten recent records while its summary counts the whole range.
+
+Actual revision checks:
+
+| Command / check | Result |
+| --- | --- |
+| `node --test scripts/core.test.mjs` before / after the source patch | 7 passed + 2 reproduced failures before; all 9 passed after |
+| `npm run typecheck`, `npm run build` in the repository | Both executables were inaccessible; no success claimed for this attempt |
+| `npm ci --ignore-scripts --no-audit --no-fund --cache ./npm-cache`, then `npm run typecheck` and `npm run build` in a temporary copy with unchanged manifests, lockfile and build configuration | Passed; Vite 7.3.7 built 1,841 modules. The full export was copied to repository `dist/`; stale chunks were removed |
+| `WHEEL_PLAYWRIGHT=/opt/imd-tools/playwright-mcp/node_modules/playwright/index.mjs PLAYWRIGHT_BROWSERS_PATH=/opt/imd-tools/ms-playwright node scripts/validate.mjs` in that build copy | 15 Chromium fixture groups passed, 0 failed. Fixtures now use canonical `settledThroughRound`, numeric strings, flat responses and RUNNING/IDLE. Named-wallet mock confirms zero-value Sepolia self-transaction with the expected calldata and displayed hash; absent-wallet path sends nothing. Axe reported no tested WCAG A/AA violations. WebKit skipped because its executable was unavailable |
+| `PLAYWRIGHT_BROWSERS_PATH=/opt/imd-tools/ms-playwright node test/scratch/revision/browser.mjs` against repository `dist/` | 9 live Chromium groups passed, 0 failed: all records/links, IDLE/ring, range requests/summaries, reload and second-profile determinism, deep links, keyboard/copy/focus return, reflow, OBS, retained live snapshots during simulated unavailability, and zero console/script errors |
+| `IMD_PLAYWRIGHT=/opt/imd-tools/playwright-mcp/node_modules/playwright/index.mjs PLAYWRIGHT_BROWSERS_PATH=/opt/imd-tools/ms-playwright node .imd/reads/skills/design-critic/scripts/taste.mjs --out test/scratch/taste` after rebuilding | 16/16 passed on the populated live export, including local resources, layout, targets, contrast, typography, copy, motion and share metadata |
+
+Better Interface coverage for the revised surfaces:
+
+| Domain | Coverage / result | Limits |
+| --- | --- | --- |
+| Accessibility | Checked: live keyboard opening, copying, Escape/focus return, named seals/state text; fixture axe scan and dialog keyboard checks passed | Screen readers and physical assistive devices untested |
+| Layout | Checked: live reflow at 320, 390 and 1440; fixture reflow also at 600, 800 and 1024. Viewed live phone, desktop and OBS screenshots. Primary Open capsule ends at y=795.4 on the first 390×844 screen, beside Stamp | Native 200% zoom, translation and RTL untested |
+| Writing | Checked: live capsule line closes with returned round/block; API summaries use returned values; outage names the retained snapshot; IDLE now says Asleep | No new copy/design feature introduced |
+| Typography | Checked: live probe passes type sizes, faces and tracking; long live summary wraps without overflow; existing local fonts retained | WebKit/native-device rendering untested |
+| Colors | Checked: live probe's measured text meets 4.5:1, or 3:1 for large text; state includes a text label. Existing palette preserved | Contrast over arbitrary OBS footage remains unverified; panel is available |
+| UI | Checked: archive and OBS populate from live data, range transitions work, seal is stable across profiles, outage retains real records and marks current state Unknown; fixture progress/state/pending/error flows pass | No real signing, Coinbase passkey, phone app or native animation-panel session |
+
+Disposable evidence inspected: `test/scratch/revision/live-390.png`, `live-1440.png`, `live-overlay.png`, `browser-results.json`, and `test/scratch/taste/{taste.json,shots/}`. These files are removed before submission. The browser connector returned `Transport closed`; the provided Playwright module successfully ran the browser checks instead. No new browser installation, publication command or real transaction was used. Hosting and a live v2 URL remain the platform's post-review step. `node scripts/check-export.mjs` passed: 25 production files, 799,153 production bytes, relative assets intact, protected paths unchanged, no submodules and the contribution below 8 MiB. The repository export matches the validated build byte for byte.
+
+## Earlier implementation validation (historical)
+
+The following records the prior accepted build, including its then-unavailable API and browser setup. Its integration assumptions and live-data limitations are superseded by the revision results above.
+
 Reviewed 2026-10-30 against the final source and static export. These are worker observations, not independent certification.
 
 ## Scope and assumptions
